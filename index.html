@@ -1,0 +1,1239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Log Analysis & Detection Utilities</title>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a33;--muted:#93a4c7;--text:#e9efff;--accent:#6aa6ff;--good:#38d39f;--warn:#ffcc66;--bad:#ff6b6b;--border:rgba(255,255,255,.10)}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:radial-gradient(1200px 700px at 20% -10%, rgba(106,166,255,.25), transparent 50%),radial-gradient(1000px 600px at 90% 10%, rgba(56,211,159,.18), transparent 55%),var(--bg);color:var(--text)}
+    header{padding:24px 18px 10px;max-width:1200px;margin:0 auto}
+    header h1{font-size:20px;margin:0 0 6px;letter-spacing:.2px}
+    header p{margin:0;color:var(--muted);font-size:13px;line-height:1.4}
+    main{max-width:1200px;margin:0 auto;padding:14px 18px 34px;display:grid;gap:14px}
+
+    .tabs{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+    .tab{border:1px solid var(--border);background:rgba(18,26,51,.55);color:var(--text);padding:10px 12px;border-radius:12px;font-size:13px;cursor:pointer;user-select:none}
+    .tab[aria-selected="true"]{border-color:rgba(106,166,255,.55);box-shadow:0 0 0 3px rgba(106,166,255,.10) inset}
+
+    .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
+    @media (max-width: 980px){.grid{grid-template-columns:1fr}}
+
+    .card{background:rgba(18,26,51,.65);border:1px solid var(--border);border-radius:16px;padding:14px}
+    .card h2{margin:0 0 10px;font-size:14px}
+
+    label{display:block;margin:10px 0 6px;color:var(--muted);font-size:12px}
+    input, select, textarea{width:100%;background:rgba(11,16,32,.7);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:10px 11px;font-size:13px;outline:none}
+    textarea{min-height:200px;resize:vertical;line-height:1.35}
+    input:focus, select:focus, textarea:focus{border-color:rgba(106,166,255,.55);box-shadow:0 0 0 3px rgba(106,166,255,.12)}
+
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    @media (max-width: 560px){.row{grid-template-columns:1fr}}
+
+    .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+    button{border:1px solid var(--border);background:rgba(11,16,32,.55);color:var(--text);padding:10px 12px;border-radius:12px;font-size:13px;cursor:pointer}
+    button.primary{border-color:rgba(106,166,255,.55);background:rgba(106,166,255,.12)}
+    button.danger{border-color:rgba(255,107,107,.6);background:rgba(255,107,107,.10)}
+
+    .hint{color:var(--muted);font-size:12px;line-height:1.45;margin:8px 0 0}
+    .status{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:6px 8px;border-radius:999px;font-size:12px;color:var(--muted)}
+    .pill b{color:var(--text);font-weight:600}
+
+    .kpis{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .kpi{border:1px solid var(--border);border-radius:14px;padding:10px 12px;min-width:150px;background:rgba(11,16,32,.35)}
+    .kpi .v{font-size:18px;margin:0}
+    .kpi .k{margin:0;color:var(--muted);font-size:12px}
+
+    .list{margin:10px 0 0;padding:0;list-style:none;display:grid;gap:10px}
+    .item{border:1px solid var(--border);border-radius:14px;padding:10px 10px 10px 12px;background:rgba(11,16,32,.35)}
+    .item .top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+
+    .badge{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--border);white-space:nowrap}
+    .badge.good{border-color:rgba(56,211,159,.6);color:var(--good)}
+    .badge.warn{border-color:rgba(255,204,102,.7);color:var(--warn)}
+    .badge.bad{border-color:rgba(255,107,107,.7);color:var(--bad)}
+
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace}
+    .small{font-size:12px;color:var(--muted)}
+    .hidden{display:none!important}
+
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th, td{border-bottom:1px solid var(--border);padding:8px 6px;text-align:left;font-size:12px;vertical-align:top}
+    th{color:var(--muted);font-weight:600}
+
+    footer{max-width:1200px;margin:0 auto;padding:0 18px 28px;color:var(--muted);font-size:12px;line-height:1.45}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Log Analysis and Detection Utilities</h1>
+    <p>
+      All parsing runs locally in your browser.
+    </p>
+  </header>
+
+  <main>
+    <div class="tabs" role="tablist" aria-label="Tools">
+      <button class="tab" role="tab" id="tab-auth" aria-controls="panel-auth" aria-selected="true">Auth / Failed Login Detector</button>
+      <button class="tab" role="tab" id="tab-web" aria-controls="panel-web" aria-selected="false">Web Access Log Scanner</button>
+      <button class="tab" role="tab" id="tab-rules" aria-controls="panel-rules" aria-selected="false">Mini Rule Engine (YAML-lite)</button>
+      <button class="tab" role="tab" id="tab-timeline" aria-controls="panel-timeline" aria-selected="false">Incident Timeline Builder</button>
+    </div>
+
+    <!-- AUTH -->
+    <section class="grid" role="tabpanel" id="panel-auth" aria-labelledby="tab-auth">
+      <div class="card">
+        <h2>Auth / Failed Login Detector</h2>
+
+        <label for="auth-format">Log format</label>
+        <select id="auth-format">
+          <option value="auto" selected>Auto-detect (best effort)</option>
+          <option value="linux">Linux auth.log (sshd)</option>
+          <option value="windows">Windows Security Events (text export)</option>
+          <option value="generic">Generic (timestamp + key=value)</option>
+        </select>
+
+        <label for="auth-raw">Paste logs</label>
+        <textarea id="auth-raw" class="mono" placeholder="Paste auth logs here (examples below via demo)."></textarea>
+
+        <div class="row">
+          <div>
+            <label for="auth-window">Aggregation window (minutes)</label>
+            <input id="auth-window" type="number" min="1" value="10" />
+          </div>
+          <div>
+            <label for="auth-threshold">Alert threshold (failures per IP per window)</label>
+            <input id="auth-threshold" type="number" min="2" value="8" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="auth-user-threshold">User spray threshold (unique users per IP per window)</label>
+            <input id="auth-user-threshold" type="number" min="2" value="6" />
+          </div>
+          <div>
+            <label for="auth-success-reset">Reset on success?</label>
+            <select id="auth-success-reset">
+              <option value="yes" selected>Yes (treat success as end of attack burst)</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="auth-run">Analyze</button>
+          <button id="auth-demo">Load demo</button>
+          <button class="danger" id="auth-clear">Clear</button>
+        </div>
+
+        <p class="hint">
+          Output includes: brute-force bursts (failures/IP), password spraying indicators (many users/IP), and rare-success anomalies (success after failures).
+          This tool does not attempt authentication or exploitation.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Results</h2>
+        <div class="status">
+          <span class="pill"><b>Last run</b> <span id="auth-last">—</span></span>
+          <span class="pill"><b>Parsed events</b> <span id="auth-events">0</span></span>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><p class="v" id="auth-kpi-alerts">0</p><p class="k">Alerts</p></div>
+          <div class="kpi"><p class="v" id="auth-kpi-ips">0</p><p class="k">Suspicious IPs</p></div>
+          <div class="kpi"><p class="v" id="auth-kpi-users">0</p><p class="k">Targeted users</p></div>
+        </div>
+        <ul class="list" id="auth-list"></ul>
+        <div id="auth-err" class="small"></div>
+      </div>
+    </section>
+
+    <!-- WEB -->
+    <section class="grid hidden" role="tabpanel" id="panel-web" aria-labelledby="tab-web">
+      <div class="card">
+        <h2>Web Access Log Scanner</h2>
+
+        <label for="web-format">Log format</label>
+        <select id="web-format">
+          <option value="combined" selected>Apache/Nginx Combined (common)</option>
+          <option value="minimal">Minimal (IP - - [ts] \"METHOD PATH\" STATUS BYTES)</option>
+          <option value="auto">Auto-detect (best effort)</option>
+        </select>
+
+        <label for="web-raw">Paste access logs</label>
+        <textarea id="web-raw" class="mono" placeholder="Paste web access logs. Use demo for sample data."></textarea>
+
+        <div class="row">
+          <div>
+            <label for="web-window">Burst window (seconds)</label>
+            <input id="web-window" type="number" min="1" value="30" />
+          </div>
+          <div>
+            <label for="web-rate">Burst threshold (requests per IP per window)</label>
+            <input id="web-rate" type="number" min="5" value="60" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="web-ua-weight">UA anomaly sensitivity</label>
+            <select id="web-ua-weight">
+              <option value="low">Low</option>
+              <option value="med" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div>
+            <label for="web-include-200">Flag suspicious 200 responses?</label>
+            <select id="web-include-200">
+              <option value="yes" selected>Yes (scan paths regardless of status)</option>
+              <option value="no">No (focus on 4xx/5xx)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="web-run">Scan</button>
+          <button id="web-demo">Load demo</button>
+          <button class="danger" id="web-clear">Clear</button>
+        </div>
+
+        <p class="hint">
+          Looks for: traversal, injection markers, sensitive file probes, admin panels, credential stuffing patterns, suspicious user agents, and request bursts.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Results</h2>
+        <div class="status">
+          <span class="pill"><b>Last run</b> <span id="web-last">—</span></span>
+          <span class="pill"><b>Parsed requests</b> <span id="web-events">0</span></span>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><p class="v" id="web-kpi-alerts">0</p><p class="k">Alerts</p></div>
+          <div class="kpi"><p class="v" id="web-kpi-bursts">0</p><p class="k">Bursting IPs</p></div>
+          <div class="kpi"><p class="v" id="web-kpi-top">—</p><p class="k">Top IP</p></div>
+        </div>
+        <ul class="list" id="web-list"></ul>
+        <div id="web-err" class="small"></div>
+      </div>
+    </section>
+
+    <!-- RULES -->
+    <section class="grid hidden" role="tabpanel" id="panel-rules" aria-labelledby="tab-rules">
+      <div class="card">
+        <h2>Mini Rule Engine (YAML-lite)</h2>
+        <p class="hint" style="margin-top:0">
+          Define simple detection rules and run them against pasted lines. This is intentionally small and transparent.
+          Supported fields per rule: <span class="mono">name</span>, <span class="mono">severity</span>, <span class="mono">match</span> (regex), optional <span class="mono">tags</span>.
+        </p>
+
+        <label for="rules">Rules (YAML-lite)</label>
+        <textarea id="rules" class="mono" placeholder="- name: Possible SQLi\n  severity: HIGH\n  match: '(?i)union\\s+select|or\\s+1=1'\n  tags: [web, sqli]\n- name: SSH failed password\n  severity: MEDIUM\n  match: '(?i)failed password'\n  tags: [auth]ըն"></textarea>
+
+        <label for="rules-raw">Log lines</label>
+        <textarea id="rules-raw" class="mono" placeholder="Paste lines to evaluate against rules."></textarea>
+
+        <div class="row">
+          <div>
+            <label for="rules-max">Max alerts</label>
+            <input id="rules-max" type="number" min="10" value="200" />
+          </div>
+          <div>
+            <label for="rules-case">Regex flags</label>
+            <select id="rules-case">
+              <option value="as-is" selected>As specified in regex</option>
+              <option value="i">Force case-insensitive (i)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="rules-run">Run rules</button>
+          <button id="rules-demo">Load demo</button>
+          <button class="danger" id="rules-clear">Clear</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Results</h2>
+        <div class="status">
+          <span class="pill"><b>Last run</b> <span id="rules-last">—</span></span>
+          <span class="pill"><b>Lines</b> <span id="rules-lines">0</span></span>
+          <span class="pill"><b>Rules</b> <span id="rules-count">0</span></span>
+        </div>
+        <div class="kpis">
+          <div class="kpi"><p class="v" id="rules-kpi-alerts">0</p><p class="k">Alerts</p></div>
+          <div class="kpi"><p class="v" id="rules-kpi-high">0</p><p class="k">High/Critical</p></div>
+          <div class="kpi"><p class="v" id="rules-kpi-top">—</p><p class="k">Top rule</p></div>
+        </div>
+        <ul class="list" id="rules-list"></ul>
+        <div id="rules-err" class="small"></div>
+      </div>
+    </section>
+
+    <!-- TIMELINE -->
+    <section class="grid hidden" role="tabpanel" id="panel-timeline" aria-labelledby="tab-timeline">
+      <div class="card">
+        <h2>Incident Timeline Builder</h2>
+        <p class="hint" style="margin-top:0">
+          Paste mixed log lines. The tool will extract timestamps (best effort), tag them by simple indicators, and produce a sortable timeline.
+          Exportable as CSV.
+        </p>
+
+        <label for="tl-raw">Log lines</label>
+        <textarea id="tl-raw" class="mono" placeholder="Paste mixed log lines (auth + web + app)."></textarea>
+
+        <div class="row">
+          <div>
+            <label for="tl-tz">Timestamp interpretation</label>
+            <select id="tl-tz">
+              <option value="local" selected>Local browser time</option>
+              <option value="utc">Assume UTC</option>
+            </select>
+          </div>
+          <div>
+            <label for="tl-max">Max events</label>
+            <input id="tl-max" type="number" min="50" value="2000" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="tl-run">Build timeline</button>
+          <button id="tl-demo">Load demo</button>
+          <button id="tl-export">Export CSV</button>
+          <button class="danger" id="tl-clear">Clear</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Timeline</h2>
+        <div class="status">
+          <span class="pill"><b>Last run</b> <span id="tl-last">—</span></span>
+          <span class="pill"><b>Events</b> <span id="tl-events">0</span></span>
+          <span class="pill"><b>Sort</b>
+            <select id="tl-sort" style="width:auto;padding:6px 8px;border-radius:999px">
+              <option value="asc" selected>Oldest → Newest</option>
+              <option value="desc">Newest → Oldest</option>
+            </select>
+          </span>
+        </div>
+
+        <div style="overflow:auto; max-height: 520px; border:1px solid var(--border); border-radius:14px; margin-top:10px;">
+          <table>
+            <thead>
+              <tr>
+                <th style="min-width:170px">Time</th>
+                <th style="min-width:90px">Severity</th>
+                <th style="min-width:130px">Tag</th>
+                <th>Message</th>
+              </tr>
+            </thead>
+            <tbody id="tl-body"></tbody>
+          </table>
+        </div>
+        <div id="tl-err" class="small"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div class="pill" style="margin-bottom:10px"><b>Safety</b> Detection/analysis only. Use only on logs you are authorized to review.</div>
+    <div>
+      Tip: For large logs, pre-filter relevant time ranges and paste only representative samples for faster browser-side parsing.
+    </div>
+  </footer>
+
+  <script>
+    // ------------------------------
+    // Tabs & utilities
+    // ------------------------------
+    const $ = (id) => document.getElementById(id);
+    const nowStr = () => new Date().toLocaleString();
+
+    function setTab(active){
+      const tabs = ["auth","web","rules","timeline"];
+      for(const t of tabs){
+        $("tab-"+t).setAttribute("aria-selected", String(t===active));
+        $("panel-"+t).classList.toggle("hidden", t!==active);
+      }
+    }
+    ["auth","web","rules","timeline"].forEach(t => $("tab-"+t).addEventListener("click", ()=>setTab(t)));
+
+    function clearList(el){ while(el.firstChild) el.removeChild(el.firstChild); }
+    function escapeHtml(s){
+      return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+    }
+    function badgeClass(sev){
+      const s = String(sev||"").toUpperCase();
+      if(s === "CRITICAL" || s === "HIGH") return "bad";
+      if(s === "MEDIUM") return "warn";
+      return "good";
+    }
+
+    // ------------------------------
+    // Common parsing helpers
+    // ------------------------------
+    const ipRe = /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/;
+
+    function parseIsoOrCommonTime(s, assumeUtc=false){
+      // Try ISO first.
+      const iso = s.match(/\b\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?\b/);
+      if(iso){
+        const txt = iso[0];
+        const d = assumeUtc ? new Date(txt.replace(/Z?$/,'Z')) : new Date(txt);
+        if(!isNaN(d.getTime())) return d;
+      }
+      // Apache: 10/Oct/2000:13:55:36 +0000
+      const ap = s.match(/\b(\d{2})\/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+\-]\d{4})\b/);
+      if(ap){
+        const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+        const day = Number(ap[1]);
+        const mon = months[ap[2]];
+        const year = Number(ap[3]);
+        const hh = Number(ap[4]), mm = Number(ap[5]), ss = Number(ap[6]);
+        const tz = ap[7];
+        const sign = tz.startsWith('-') ? -1 : 1;
+        const tzh = Number(tz.slice(1,3));
+        const tzm = Number(tz.slice(3,5));
+        // Construct as UTC then offset.
+        const utc = Date.UTC(year, mon, day, hh, mm, ss);
+        const offsetMs = sign * (tzh*60+tzm) * 60_000;
+        return new Date(utc - offsetMs);
+      }
+      // Syslog: "Jan 12 10:44:01" (no year). Assume current year.
+      const sys = s.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\s+(\d{2}):(\d{2}):(\d{2})\b/);
+      if(sys){
+        const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+        const year = new Date().getFullYear();
+        const d = new Date(year, months[sys[1]], Number(sys[2]), Number(sys[3]), Number(sys[4]), Number(sys[5]));
+        return d;
+      }
+      return null;
+    }
+
+    function splitLines(raw){
+      return raw.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+    }
+
+    // ------------------------------
+    // AUTH detector
+    // ------------------------------
+    function parseAuthLine(line, mode){
+      const lower = line.toLowerCase();
+      let ts = parseIsoOrCommonTime(line, false);
+      let ip = (line.match(ipRe) || [""])[0] || "";
+      let user = "";
+      let outcome = "";
+      let service = "";
+
+      if(mode === "auto"){
+        if(lower.includes("sshd") || lower.includes("failed password") || lower.includes("accepted password") || lower.includes("invalid user")) mode = "linux";
+        else if(lower.includes("event id") || lower.includes("4625") || lower.includes("4624")) mode = "windows";
+        else if(line.includes("=") && (lower.includes("user=") || lower.includes("username="))) mode = "generic";
+        else mode = "linux";
+      }
+
+      if(mode === "linux"){
+        service = "sshd";
+        const u1 = line.match(/for (invalid user )?([\w\-\.@]+)/i);
+        if(u1) user = u1[2] || "";
+        if(lower.includes("failed password") || lower.includes("authentication failure") || lower.includes("invalid user")) outcome = "FAIL";
+        if(lower.includes("accepted password") || lower.includes("accepted publickey")) outcome = "SUCCESS";
+      }
+
+      if(mode === "windows"){
+        service = "windows";
+        if(lower.includes("4625")) outcome = "FAIL";
+        if(lower.includes("4624")) outcome = "SUCCESS";
+        const u = line.match(/account name\s*[:=]\s*([^\s,;]+)/i) || line.match(/user(name)?\s*[:=]\s*([^\s,;]+)/i);
+        if(u) user = (u[2] || u[1] || "").trim();
+      }
+
+      if(mode === "generic"){
+        const kv = Object.fromEntries([...line.matchAll(/(\w+)\s*=\s*([^\s]+)/g)].map(m => [m[1].toLowerCase(), m[2]]));
+        user = kv.user || kv.username || user;
+        ip = kv.ip || kv.srcip || kv.sourceip || kv.remoteip || ip;
+        const o = (kv.outcome || kv.result || kv.status || "").toLowerCase();
+        if(["fail","failed","deny","denied"].includes(o)) outcome = "FAIL";
+        if(["success","ok","allowed","allow"].includes(o)) outcome = "SUCCESS";
+        service = kv.service || kv.app || "generic";
+        if(!ts && kv.ts) ts = parseIsoOrCommonTime(kv.ts, false);
+      }
+
+      if(!ts) ts = new Date(); // fallback
+
+      if(!outcome) return null; // ignore lines not clearly auth outcome
+      return { ts, ip: ip || "(unknown)", user: user || "(unknown)", outcome, service, raw: line };
+    }
+
+    function groupByWindow(events, windowMin){
+      const wMs = windowMin * 60_000;
+      const groups = new Map();
+      for(const e of events){
+        const bucket = Math.floor(e.ts.getTime()/wMs);
+        const key = `${bucket}|${e.ip}`;
+        if(!groups.has(key)) groups.set(key, { bucket, ip: e.ip, users: new Set(), fails: 0, success: 0, first: e.ts, last: e.ts, samples: []});
+        const g = groups.get(key);
+        g.first = new Date(Math.min(g.first.getTime(), e.ts.getTime()));
+        g.last  = new Date(Math.max(g.last.getTime(),  e.ts.getTime()));
+        g.users.add(e.user);
+        if(e.outcome === "FAIL") g.fails++;
+        if(e.outcome === "SUCCESS") g.success++;
+        if(g.samples.length < 4) g.samples.push(e.raw);
+      }
+      return [...groups.values()];
+    }
+
+    function analyzeAuth(events, cfg){
+      const { windowMin, threshold, userThreshold, resetOnSuccess } = cfg;
+      const sorted = [...events].sort((a,b)=>a.ts-b.ts);
+
+      // Optional: reset burst accounting when a success occurs.
+      let effective = sorted;
+      if(resetOnSuccess){
+        const out = [];
+        const lastSuccessByIp = new Map();
+        for(const e of sorted){
+          if(e.outcome === "SUCCESS"){
+            lastSuccessByIp.set(e.ip, e.ts.getTime());
+            out.push(e);
+            continue;
+          }
+          const lastOk = lastSuccessByIp.get(e.ip);
+          // Keep failures; they will fall into window buckets naturally.
+          out.push(e);
+        }
+        effective = out;
+      }
+
+      const groups = groupByWindow(effective, windowMin);
+      const alerts = [];
+      const suspiciousIps = new Set();
+      const targetedUsers = new Set();
+
+      for(const g of groups){
+        if(g.fails >= threshold){
+          alerts.push({
+            kind: "BRUTE_FORCE",
+            severity: g.fails >= threshold*2 ? "HIGH" : "MEDIUM",
+            ip: g.ip,
+            window: `${g.first.toLocaleString()} → ${g.last.toLocaleString()}`,
+            detail: `${g.fails} failed logins in window`,
+            users: [...g.users].slice(0,12),
+            samples: g.samples
+          });
+          suspiciousIps.add(g.ip);
+          for(const u of g.users) targetedUsers.add(u);
+        }
+        if(g.users.size >= userThreshold && g.fails >= Math.max(3, Math.floor(threshold/2))){
+          alerts.push({
+            kind: "PASSWORD_SPRAY",
+            severity: g.users.size >= userThreshold*2 ? "HIGH" : "MEDIUM",
+            ip: g.ip,
+            window: `${g.first.toLocaleString()} → ${g.last.toLocaleString()}`,
+            detail: `${g.users.size} unique users targeted in window`,
+            users: [...g.users].slice(0,12),
+            samples: g.samples
+          });
+          suspiciousIps.add(g.ip);
+          for(const u of g.users) targetedUsers.add(u);
+        }
+        // Rare-success anomaly: success after non-trivial failures in same window.
+        if(g.success >= 1 && g.fails >= Math.max(4, Math.floor(threshold/2))){
+          alerts.push({
+            kind: "SUCCESS_AFTER_FAILURES",
+            severity: "HIGH",
+            ip: g.ip,
+            window: `${g.first.toLocaleString()} → ${g.last.toLocaleString()}`,
+            detail: `${g.success} success with ${g.fails} failures in window`,
+            users: [...g.users].slice(0,12),
+            samples: g.samples
+          });
+          suspiciousIps.add(g.ip);
+          for(const u of g.users) targetedUsers.add(u);
+        }
+      }
+
+      // Rank alerts: HIGH first, then by fail count inferred from detail.
+      const sevRank = {CRITICAL:3,HIGH:2,MEDIUM:1,LOW:0};
+      alerts.sort((a,b)=>{
+        const sa = sevRank[a.severity] ?? 0;
+        const sb = sevRank[b.severity] ?? 0;
+        if(sa !== sb) return sb-sa;
+        const na = Number((a.detail.match(/(\d+)/)||[0,0])[1]);
+        const nb = Number((b.detail.match(/(\d+)/)||[0,0])[1]);
+        return nb-na;
+      });
+
+      return { alerts, suspiciousIps: [...suspiciousIps], targetedUsers: [...targetedUsers] };
+    }
+
+    function renderAuth(out, parsedCount){
+      $("auth-last").textContent = nowStr();
+      $("auth-events").textContent = String(parsedCount);
+      $("auth-kpi-alerts").textContent = String(out.alerts.length);
+      $("auth-kpi-ips").textContent = String(out.suspiciousIps.length);
+      $("auth-kpi-users").textContent = String(out.targetedUsers.length);
+
+      const list = $("auth-list");
+      clearList(list);
+
+      if(out.alerts.length === 0){
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = `<div class="small">No alerts triggered with current thresholds.</div>`;
+        list.appendChild(li);
+        return;
+      }
+
+      for(const a of out.alerts){
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = `
+          <div class="top">
+            <div>
+              <div><span class="mono">${escapeHtml(a.kind)}</span> <span class="small">(${escapeHtml(a.window)})</span></div>
+              <div class="small" style="margin-top:6px">IP: <span class="mono">${escapeHtml(a.ip)}</span> · ${escapeHtml(a.detail)}</div>
+              <div class="small" style="margin-top:6px">Users (sample): <span class="mono">${escapeHtml(a.users.join(", ") || "—")}</span></div>
+              <details style="margin-top:8px">
+                <summary class="small">Samples</summary>
+                <div class="small mono" style="margin-top:6px; white-space:pre-wrap">${escapeHtml(a.samples.join("\n"))}</div>
+              </details>
+            </div>
+            <span class="badge ${badgeClass(a.severity)}">${escapeHtml(a.severity)}</span>
+          </div>
+        `;
+        list.appendChild(li);
+      }
+    }
+
+    $("auth-demo").addEventListener("click", ()=>{
+      $("auth-format").value = "linux";
+      $("auth-raw").value = [
+        "Jan 12 10:44:01 host sshd[111]: Failed password for invalid user admin from 203.0.113.10 port 51234 ssh2",
+        "Jan 12 10:44:03 host sshd[111]: Failed password for invalid user admin from 203.0.113.10 port 51235 ssh2",
+        "Jan 12 10:44:05 host sshd[111]: Failed password for root from 203.0.113.10 port 51236 ssh2",
+        "Jan 12 10:44:07 host sshd[111]: Failed password for ubuntu from 203.0.113.10 port 51237 ssh2",
+        "Jan 12 10:44:08 host sshd[111]: Failed password for postgres from 203.0.113.10 port 51238 ssh2",
+        "Jan 12 10:44:09 host sshd[111]: Failed password for test from 203.0.113.10 port 51239 ssh2",
+        "Jan 12 10:44:10 host sshd[111]: Accepted password for ubuntu from 203.0.113.10 port 51240 ssh2",
+        "Jan 12 11:05:01 host sshd[222]: Failed password for invalid user guest from 198.51.100.23 port 40001 ssh2",
+        "Jan 12 11:05:03 host sshd[222]: Failed password for invalid user guest from 198.51.100.23 port 40002 ssh2",
+        "Jan 12 11:05:05 host sshd[222]: Failed password for invalid user guest from 198.51.100.23 port 40003 ssh2",
+        "Jan 12 11:05:07 host sshd[222]: Failed password for invalid user guest from 198.51.100.23 port 40004 ssh2"
+      ].join("\n");
+    });
+
+    $("auth-clear").addEventListener("click", ()=>{
+      $("auth-raw").value = "";
+      $("auth-err").textContent = "";
+      $("auth-last").textContent = "—";
+      $("auth-events").textContent = "0";
+      $("auth-kpi-alerts").textContent = "0";
+      $("auth-kpi-ips").textContent = "0";
+      $("auth-kpi-users").textContent = "0";
+      clearList($("auth-list"));
+    });
+
+    $("auth-run").addEventListener("click", ()=>{
+      $("auth-err").textContent = "";
+      try{
+        const mode = $("auth-format").value;
+        const lines = splitLines($("auth-raw").value);
+        const events = [];
+        for(const line of lines){
+          const e = parseAuthLine(line, mode);
+          if(e) events.push(e);
+        }
+
+        const cfg = {
+          windowMin: Math.max(1, Number($("auth-window").value) || 10),
+          threshold: Math.max(2, Number($("auth-threshold").value) || 8),
+          userThreshold: Math.max(2, Number($("auth-user-threshold").value) || 6),
+          resetOnSuccess: $("auth-success-reset").value === "yes"
+        };
+
+        const out = analyzeAuth(events, cfg);
+        renderAuth(out, events.length);
+      } catch(e){
+        $("auth-err").textContent = `Error: ${e.message}`;
+      }
+    });
+
+    // ------------------------------
+    // WEB scanner
+    // ------------------------------
+    function parseAccessLine(line, mode){
+      // Combined-ish: IP - - [10/Oct/2000:13:55:36 +0000] "GET /path?x=1 HTTP/1.1" 200 123 "ref" "ua"
+      // Minimal: IP - - [..] "METHOD PATH" STATUS BYTES
+      let ip = (line.match(/^\s*([^\s]+)/) || [""])[1] || "";
+      if(!ipRe.test(ip)) ip = (line.match(ipRe) || [""])[0] || "";
+      const ts = parseIsoOrCommonTime(line, false) || new Date();
+
+      const req = line.match(/\"(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s+([^\s\"]+)/i);
+      const method = req ? req[1].toUpperCase() : "";
+      const path = req ? req[2] : "";
+
+      const statusM = line.match(/\"\s*(\d{3})\s+/);
+      const status = statusM ? Number(statusM[1]) : null;
+
+      // UA is last quoted string in combined logs.
+      const quotes = [...line.matchAll(/\"([^\"]*)\"/g)].map(m=>m[1]);
+      const ua = quotes.length ? quotes[quotes.length-1] : "";
+
+      if(!ip || !method || !path) return null;
+      return { ts, ip, method, path, status, ua, raw: line };
+    }
+
+    function scoreWebEvent(e, cfg){
+      const p = e.path.toLowerCase();
+      const ua = (e.ua || "").toLowerCase();
+      const status = e.status;
+      const include200 = cfg.include200;
+
+      // If focusing on errors, ignore obvious normal 2xx.
+      if(!include200 && status && status < 400) return null;
+
+      let score = 0;
+      const hits = [];
+
+      const patterns = [
+        {name:"Traversal", re:/(\.\.\/|%2e%2e%2f|%2e%2e\\)/i, w:18},
+        {name:"SQLi markers", re:/(\bunion\b\s+\bselect\b|\bor\b\s+1=1|%27|%22|\'\s*or\s*\d=\d)/i, w:16},
+        {name:"Command injection", re:/(;|\|\||&&)\s*(cat|whoami|id|curl|wget|bash|sh)\b/i, w:18},
+        {name:"SSRF-ish", re:/(https?:\/\/)(127\.0\.0\.1|localhost|169\.254\.169\.254)/i, w:18},
+        {name:"Sensitive file probe", re:/(\/\.env\b|\/wp-admin\b|\/phpmyadmin\b|\/admin\b|\/\.git\b|\/etc\/passwd|\/config\b)/i, w:16},
+        {name:"Credential stuffing", re:/(\/login\b|\/signin\b|\/session\b)/i, w:10},
+        {name:"Scanner UA", re:/(sqlmap|nikto|nmap|acunetix|nessus|masscan|curl\/|python-requests)/i, w:14},
+        {name:"XSS markers", re:/(<script|%3cscript|onerror=|onload=)/i, w:12}
+      ];
+
+      for(const pat of patterns){
+        if(pat.re.test(p) || pat.re.test(e.raw)){
+          score += pat.w;
+          hits.push(pat.name);
+        }
+      }
+
+      // Status adds signal.
+      if(status){
+        if(status === 401 || status === 403) score += 6;
+        if(status === 404) score += 3;
+        if(status >= 500) score += 8;
+      }
+
+      // UA anomaly weighting.
+      const uaWeight = cfg.uaWeight;
+      if(uaWeight !== "low"){
+        const botty = /(bot|spider|crawler)/.test(ua);
+        const empty = !ua.trim();
+        if(empty) score += (uaWeight === "high" ? 10 : 6);
+        if(botty) score += (uaWeight === "high" ? 8 : 4);
+      }
+
+      if(score <= 0) return null;
+
+      // Convert to severity.
+      let sev = "LOW";
+      if(score >= 40) sev = "HIGH";
+      else if(score >= 24) sev = "MEDIUM";
+
+      return { score, sev, hits };
+    }
+
+    function findBursts(events, windowSec, threshold){
+      // Sliding window per IP using two pointers.
+      const byIp = new Map();
+      for(const e of events){
+        if(!byIp.has(e.ip)) byIp.set(e.ip, []);
+        byIp.get(e.ip).push(e);
+      }
+
+      const bursts = [];
+      for(const [ip, arr] of byIp.entries()){
+        arr.sort((a,b)=>a.ts-b.ts);
+        let i=0;
+        for(let j=0;j<arr.length;j++){
+          while(arr[j].ts - arr[i].ts > windowSec*1000) i++;
+          const count = j - i + 1;
+          if(count >= threshold){
+            const first = arr[i].ts;
+            const last = arr[j].ts;
+            bursts.push({ ip, count, first, last });
+            // Skip ahead to avoid duplicates.
+            i = j;
+          }
+        }
+      }
+      bursts.sort((a,b)=>b.count-a.count);
+      return bursts;
+    }
+
+    function renderWeb(out){
+      $("web-last").textContent = nowStr();
+      $("web-events").textContent = String(out.parsed);
+      $("web-kpi-alerts").textContent = String(out.alerts.length);
+      $("web-kpi-bursts").textContent = String(out.bursts.length);
+      $("web-kpi-top").textContent = out.topIp || "—";
+
+      const list = $("web-list");
+      clearList(list);
+
+      // Bursts summary first.
+      if(out.bursts.length){
+        const b = out.bursts[0];
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = `
+          <div class="top">
+            <div>
+              <div><span class="mono">REQUEST_BURST</span> <span class="small">(top burst)</span></div>
+              <div class="small" style="margin-top:6px">IP: <span class="mono">${escapeHtml(b.ip)}</span> · ${b.count} reqs · ${b.first.toLocaleString()} → ${b.last.toLocaleString()}</div>
+              <div class="small" style="margin-top:6px">Suggested follow-up: validate WAF/rate-limits, check targeted endpoints, and correlate with auth failures.</div>
+            </div>
+            <span class="badge bad">HIGH</span>
+          </div>
+        `;
+        list.appendChild(li);
+      }
+
+      // Then per-request alerts.
+      if(out.alerts.length === 0){
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = `<div class="small">No suspicious request patterns detected with current settings.</div>`;
+        list.appendChild(li);
+        return;
+      }
+
+      for(const a of out.alerts.slice(0, 250)){
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = `
+          <div class="top">
+            <div>
+              <div><span class="mono">${escapeHtml(a.ip)}</span> <span class="small">${escapeHtml(a.ts.toLocaleString())}</span></div>
+              <div class="small" style="margin-top:6px"><span class="mono">${escapeHtml(a.method)}</span> ${escapeHtml(a.path)} ${a.status!=null?`<span class="small">(HTTP ${a.status})</span>`:""}</div>
+              <div class="small" style="margin-top:6px">Signals: <span class="mono">${escapeHtml(a.hits.join(", "))}</span></div>
+              <div class="small" style="margin-top:6px">UA: <span class="mono">${escapeHtml((a.ua||"").slice(0,160) || "—")}</span></div>
+            </div>
+            <span class="badge ${badgeClass(a.sev)}">${escapeHtml(a.sev)}</span>
+          </div>
+        `;
+        list.appendChild(li);
+      }
+    }
+
+    $("web-demo").addEventListener("click", ()=>{
+      $("web-raw").value = [
+        '203.0.113.10 - - [12/Jan/2025:10:44:01 +0000] "GET /wp-admin HTTP/1.1" 404 153 "-" "Mozilla/5.0"',
+        '203.0.113.10 - - [12/Jan/2025:10:44:05 +0000] "GET /?id=1%27%20or%201=1 HTTP/1.1" 200 512 "-" "sqlmap/1.7"',
+        '198.51.100.23 - - [12/Jan/2025:10:44:10 +0000] "GET /.env HTTP/1.1" 404 153 "-" "curl/7.81.0"',
+        '198.51.100.23 - - [12/Jan/2025:10:44:12 +0000] "GET /../../../../etc/passwd HTTP/1.1" 403 22 "-" "python-requests/2.31"',
+        '192.0.2.55 - - [12/Jan/2025:10:44:15 +0000] "POST /login HTTP/1.1" 401 64 "-" "Mozilla/5.0"',
+        '192.0.2.55 - - [12/Jan/2025:10:44:16 +0000] "POST /login HTTP/1.1" 401 64 "-" "Mozilla/5.0"'
+      ].join("\n");
+    });
+
+    $("web-clear").addEventListener("click", ()=>{
+      $("web-raw").value = "";
+      $("web-err").textContent = "";
+      $("web-last").textContent = "—";
+      $("web-events").textContent = "0";
+      $("web-kpi-alerts").textContent = "0";
+      $("web-kpi-bursts").textContent = "0";
+      $("web-kpi-top").textContent = "—";
+      clearList($("web-list"));
+    });
+
+    $("web-run").addEventListener("click", ()=>{
+      $("web-err").textContent = "";
+      try{
+        const mode = $("web-format").value;
+        const lines = splitLines($("web-raw").value);
+        const events = [];
+        for(const line of lines){
+          const e = parseAccessLine(line, mode);
+          if(e) events.push(e);
+        }
+
+        const cfg = {
+          windowSec: Math.max(1, Number($("web-window").value) || 30),
+          rate: Math.max(5, Number($("web-rate").value) || 60),
+          uaWeight: $("web-ua-weight").value,
+          include200: $("web-include-200").value === "yes"
+        };
+
+        const alerts = [];
+        const ipCounts = new Map();
+        for(const e of events){
+          ipCounts.set(e.ip, (ipCounts.get(e.ip)||0)+1);
+          const s = scoreWebEvent(e, cfg);
+          if(!s) continue;
+          alerts.push({ ...e, ...s });
+        }
+
+        alerts.sort((a,b)=>{
+          const rank = {HIGH:2,MEDIUM:1,LOW:0};
+          const ra = rank[a.sev]??0, rb = rank[b.sev]??0;
+          if(ra !== rb) return rb-ra;
+          return b.score - a.score;
+        });
+
+        const bursts = findBursts(events, cfg.windowSec, cfg.rate);
+
+        let topIp = "—";
+        let topN = 0;
+        for(const [ip, n] of ipCounts.entries()){
+          if(n>topN){ topN=n; topIp=ip; }
+        }
+
+        renderWeb({ parsed: events.length, alerts, bursts, topIp });
+      } catch(e){
+        $("web-err").textContent = `Error: ${e.message}`;
+      }
+    });
+
+    // ------------------------------
+    // Rule engine (YAML-lite)
+    // ------------------------------
+    function parseYamlLite(text){
+      // Very small subset: list of objects started by "-".
+      // Keys: name, severity, match, tags.
+      const lines = text.split(/\r?\n/);
+      const rules = [];
+      let cur = null;
+
+      function commit(){
+        if(!cur) return;
+        if(cur.name && cur.match){ rules.push(cur); }
+        cur = null;
+      }
+
+      for(const raw of lines){
+        const line = raw.trim();
+        if(!line || line.startsWith("#")) continue;
+        if(line.startsWith("- ")){
+          commit();
+          cur = {};
+          const rest = line.slice(2).trim();
+          if(rest){
+            const idx = rest.indexOf(":");
+            if(idx>0){
+              const k = rest.slice(0, idx).trim();
+              const v = rest.slice(idx+1).trim();
+              cur[k] = stripQuotes(v);
+            }
+          }
+          continue;
+        }
+        if(!cur) continue;
+        const idx = line.indexOf(":");
+        if(idx<=0) continue;
+        const key = line.slice(0, idx).trim();
+        const val = line.slice(idx+1).trim();
+        if(key === "tags"){
+          cur.tags = parseTags(val);
+        } else {
+          cur[key] = stripQuotes(val);
+        }
+      }
+      commit();
+
+      // Normalize.
+      return rules.map(r => ({
+        name: String(r.name || "Rule").trim(),
+        severity: String(r.severity || "MEDIUM").trim().toUpperCase(),
+        match: String(r.match || "").trim(),
+        tags: Array.isArray(r.tags) ? r.tags : []
+      }));
+    }
+
+    function stripQuotes(s){
+      const t = s.trim();
+      if((t.startsWith("'") && t.endsWith("'")) || (t.startsWith('"') && t.endsWith('"'))){
+        return t.slice(1,-1);
+      }
+      return t;
+    }
+
+    function parseTags(v){
+      // [a, b] or comma-separated
+      const t = v.trim();
+      if(t.startsWith("[") && t.endsWith("]")){
+        return t.slice(1,-1).split(",").map(x=>x.trim()).filter(Boolean);
+      }
+      return t.split(",").map(x=>x.trim()).filter(Boolean);
+    }
+
+    function runRules(rules, lines, forceI){
+      const alerts = [];
+      const perRule = new Map();
+
+      for(const rule of rules){
+        let re;
+        try{
+          if(forceI){
+            // If rule has inline flags, this is still fine; RegExp will treat them as part of pattern if present.
+            re = new RegExp(rule.match, "i");
+          } else {
+            re = new RegExp(rule.match);
+          }
+        } catch(e){
+          alerts.push({ rule: rule.name, severity: "MEDIUM", line: "(rule parse error)", why: e.message });
+          continue;
+        }
+
+        for(const line of lines){
+          if(re.test(line)){
+            alerts.push({
+              rule: rule.name,
+              severity: rule.severity,
+              tags: rule.tags,
+              line,
+            });
+            perRule.set(rule.name, (perRule.get(rule.name)||0)+1);
+          }
+        }
+      }
+
+      const sevRank = {CRITICAL:3,HIGH:2,MEDIUM:1,LOW:0};
+      alerts.sort((a,b)=>{
+        const sa = sevRank[a.severity]??0;
+        const sb = sevRank[b.severity]??0;
+        if(sa !== sb) return sb-sa;
+        return (a.rule||"").localeCompare(b.rule||"");
+      });
+
+      let topRule = "—";
+      let topCount = 0;
+      for(const [r, c] of perRule.entries()){
+        if(c>topCount){ topCount=c; topRule=r; }
+      }
+
+      const highish = alerts.filter(a => a.severity === "HIGH" || a.severity === "CRITICAL").length;
+      return { alerts, highish, topRule, ruleCount: rules.length };
+    }
+
+    function renderRules(out, lineCount, ruleCount){
+      $("rules-last").textContent = nowStr();
+      $("rules-lines").textContent = String(lineCount);
+      $("rules-count").textContent = String(ruleCount);
+      $("rules-kpi-alerts").textContent = String(out.alerts.length);
+      $("rules-kpi-high").textContent = String(out.highish);
+      $("rules-kpi-top").textContent = out.topRule || "—";
+
+      const list = $("rules-list");
+      clearList(list);
+
+      if(out.alerts.length === 0){
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = `<div class="small">No matches.</div>`;
+        list.appendChild(li);
+        return;
+      }
+
+      for(const a of out.alerts.slice(0, Number($("rules-max").value)||200)){
+        const li = document.createElement("li");
+        li.className = "item";
+        li.innerHTML = `
+          <div class="top">
+            <div>
+              <div><span class="mono">${escapeHtml(a.rule)}</span> <span class="small">${a.tags?.length?`[${escapeHtml(a.tags.join(", "))}]`:""}</span></div>
+              <div class="small mono" style="margin-top:6px; white-space:pre-wrap">${escapeHtml(a.line).slice(0, 500)}${a.line.length>500?"…":""}</div>
+            </div>
+            <span class="badge ${badgeClass(a.severity)}">${escapeHtml(a.severity)}</span>
+          </div>
+        `;
+        list.appendChild(li);
+      }
+    }
+
+    $("rules-demo").addEventListener("click", ()=>{
+      $("rules").value = [
+        "- name: Possible SQLi",
+        "  severity: HIGH",
+        "  match: '(?i)union\\s+select|or\\s+1=1|%27%20or%201=1'",
+        "  tags: [web, sqli]",
+        "- name: Directory traversal",
+        "  severity: HIGH",
+        "  match: '(?i)\\.\\.\\/|%2e%2e%2f|/etc/passwd'",
+        "  tags: [web, traversal]",
+        "- name: SSH failed password",
+        "  severity: MEDIUM",
+        "  match: '(?i)failed password'",
+        "  tags: [auth]"
+      ].join("\n");
+
+      $("rules-raw").value = [
+        '203.0.113.10 - - [12/Jan/2025:10:44:05 +0000] "GET /?id=1%27%20or%201=1 HTTP/1.1" 200 512 "-" "sqlmap/1.7"',
+        'Jan 12 10:44:01 host sshd[111]: Failed password for invalid user admin from 203.0.113.10 port 51234 ssh2',
+        '198.51.100.23 - - [12/Jan/2025:10:44:12 +0000] "GET /../../../../etc/passwd HTTP/1.1" 403 22 "-" "python-requests/2.31"'
+      ].join("\n");
+    });
+
+    $("rules-clear").addEventListener("click", ()=>{
+      $("rules").value = "";
+      $("rules-raw").value = "";
+      $("rules-err").textContent = "";
+      $("rules-last").textContent = "—";
+      $("rules-lines").textContent = "0";
+      $("rules-count").textContent = "0";
+      $("rules-kpi-alerts").textContent = "0";
+      $("rules-kpi-high").textContent = "0";
+      $("rules-kpi-top").textContent = "—";
+      clearList($("rules-list"));
+    });
+
+    $("rules-run").addEventListener("click", ()=>{
+      $("rules-err").textContent = "";
+      try{
+        const rules = parseYamlLite($("rules").value);
+        const lines = splitLines($("rules-raw").value);
+        const forceI = $("rules-case").value === "i";
+        const out = runRules(rules, lines, forceI);
+        renderRules(out, lines.length, out.ruleCount);
+      } catch(e){
+        $("rules-err").textContent = `Error: ${e.message}`;
+      }
+    });
+
+    // ------------------------------
+    // Timeline builder
+    // ------------------------------
+    function tagAndSeverity(line){
+      const s = line.toLowerCase();
+      const tags = [];
+      let sev = "LOW";
+
+      const add = (t, level) => {
+        tags.push(t);
+        const rank = {LOW:0,MEDIUM:1,HIGH:2,CRITICAL:3};
+        if(rank[level] > rank[sev]) sev = level;
+      };
+
+      if(s.includes("failed password") || s.includes("4625") || s.includes("invalid user")) add("auth_fail", "MEDIUM");
+      if(s.includes("accepted password") || s.includes("4624")) add("auth_success", "LOW");
+      if(/\bwp-admin\b|phpmyadmin|\/\.env\b|\/\.git\b/.test(s)) add("probe_sensitive", "MEDIUM");
+      if(/\.\.\/|%2e%2e%2f|\/etc\/passwd/.test(s)) add("traversal", "HIGH");
+      if(/union\s+select|or\s+1=1|sqlmap/.test(s)) add("sqli", "HIGH");
+      if(/\b500\b|\b502\b|\b503\b|\b504\b/.test(s)) add("server_error", "MEDIUM");
+      if(/\b401\b|\b403\b/.test(s)) add("authz", "LOW");
+
+      if(tags.length === 0) tags.push("other");
+      return { tags: tags.join(","), sev };
+    }
+
+    let timelineCache = [];
+
+    function buildTimeline(lines, assumeUtc, max){
+      const out = [];
+      for(const line of lines.slice(0, max)){
+        const ts = parseIsoOrCommonTime(line, assumeUtc);
+        const time = ts ? ts : new Date();
+        const t = tagAndSeverity(line);
+        out.push({ time, severity: t.sev, tag: t.tags, message: line });
+      }
+      return out;
+    }
+
+    function renderTimeline(arr, order){
+      const body = $("tl-body");
+      body.innerHTML = "";
+
+      const rank = {CRITICAL:3,HIGH:2,MEDIUM:1,LOW:0};
+      const sorted = [...arr].sort((a,b)=> order==="asc" ? (a.time-b.time) : (b.time-a.time));
+
+      for(const e of sorted){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono">${escapeHtml(e.time.toLocaleString())}</td>
+          <td><span class="badge ${badgeClass(e.severity)}">${escapeHtml(e.severity)}</span></td>
+          <td class="mono">${escapeHtml(e.tag)}</td>
+          <td class="small" style="white-space:pre-wrap">${escapeHtml(e.message)}</td>
+        `;
+        body.appendChild(tr);
+      }
+    }
+
+    function exportCsv(rows){
+      const header = ["time","severity","tag","message"];
+      const lines = [header.join(",")];
+      for(const r of rows){
+        const vals = [
+          r.time.toISOString(),
+          r.severity,
+          r.tag,
+          r.message.replaceAll('"','""')
+        ];
+        lines.push(vals.map(v => `"${v}"`).join(","));
+      }
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "timeline.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    $("tl-demo").addEventListener("click", ()=>{
+      $("tl-raw").value = [
+        'Jan 12 10:44:01 host sshd[111]: Failed password for invalid user admin from 203.0.113.10 port 51234 ssh2',
+        '203.0.113.10 - - [12/Jan/2025:10:44:05 +0000] "GET /?id=1%27%20or%201=1 HTTP/1.1" 200 512 "-" "sqlmap/1.7"',
+        '198.51.100.23 - - [12/Jan/2025:10:44:12 +0000] "GET /../../../../etc/passwd HTTP/1.1" 403 22 "-" "python-requests/2.31"',
+        'Jan 12 10:44:10 host sshd[111]: Accepted password for ubuntu from 203.0.113.10 port 51240 ssh2',
+        '192.0.2.55 - - [12/Jan/2025:10:44:15 +0000] "POST /login HTTP/1.1" 401 64 "-" "Mozilla/5.0"',
+        '192.0.2.55 - - [12/Jan/2025:10:44:20 +0000] "GET /wp-admin HTTP/1.1" 404 153 "-" "Mozilla/5.0"'
+      ].join("\n");
+    });
+
+    $("tl-clear").addEventListener("click", ()=>{
+      $("tl-raw").value = "";
+      $("tl-err").textContent = "";
+      $("tl-last").textContent = "—";
+      $("tl-events").textContent = "0";
+      timelineCache = [];
+      $("tl-body").innerHTML = "";
+    });
+
+    $("tl-run").addEventListener("click", ()=>{
+      $("tl-err").textContent = "";
+      try{
+        const lines = splitLines($("tl-raw").value);
+        const assumeUtc = $("tl-tz").value === "utc";
+        const max = Math.max(50, Number($("tl-max").value) || 2000);
+        timelineCache = buildTimeline(lines, assumeUtc, max);
+        $("tl-last").textContent = nowStr();
+        $("tl-events").textContent = String(timelineCache.length);
+        renderTimeline(timelineCache, $("tl-sort").value);
+      } catch(e){
+        $("tl-err").textContent = `Error: ${e.message}`;
+      }
+    });
+
+    $("tl-sort").addEventListener("change", ()=>{
+      if(!timelineCache.length) return;
+      renderTimeline(timelineCache, $("tl-sort").value);
+    });
+
+    $("tl-export").addEventListener("click", ()=>{
+      if(!timelineCache.length){
+        $("tl-err").textContent = "Nothing to export. Build a timeline first.";
+        return;
+      }
+      exportCsv(timelineCache);
+    });
+  </script>
+</body>
+</html>
