@@ -4,7 +4,7 @@ Live URL: https://aminbiography.github.io/CTI-Log-Analysis-And-Detection-APP/
 
 ## Description for users (SOC analyst / IR operator)
 
-### What this page is
+### What this page is 
 
 This is a **browser-only log triage and detection helper**. You paste log lines into the relevant tab and the page performs **local parsing and detection** in your browser. It does not collect logs automatically and does not send your pasted data to external services.
 
