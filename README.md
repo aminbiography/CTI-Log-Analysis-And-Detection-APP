@@ -1,5 +1,5 @@
 Live URL: https://aminbiography.github.io/CTI-Log-Analysis-And-Detection-APP/
-   
+     
 ---      
  
 ## Description for users (SOC analyst / IR operator)
